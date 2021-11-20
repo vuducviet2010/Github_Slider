@@ -28,6 +28,10 @@ float RotaryButtonTime = 0;
 bool stepperHoming_Selected = false;
 int homingPosition = 1;
 bool joystickMovement_Selected = false;
+bool stepperSpeed_Selected = false;
+bool stepperDistance_Selected = false;
+bool stepperTime_Selected = false;
+bool startSlider_Selected = false;
 
 bool valueChanged;
 bool menuChanged;
@@ -69,25 +73,6 @@ void setup() {
   updateMenuPosition();
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
-  ReadAnalog();
-  CheckRotaryButton();
-  if (menuChanged == true)
-  {
-    updateMenuPosition();
-  }
-
-  if (updateValueSelection == true)
-  {
-    updateSelection();
-  }
-
-  if (valueChanged == true )
-  {
-    updateValue();
-  }
-}
 void ReadAnalog()
 {
   if (joystickMovement_Selected == true)
@@ -126,7 +111,63 @@ void InitialValues()
   }
   Analog_X_AVG = tempX / 50;
 }
+void recalculateSpeed()
+{
+  // v = s/t
+  travelSpeed = (10 * travelDistance) / (60.0 * travelTime); //60x because the time is expressed in minutes
+  //(10*[cm]) /(60*[min]) ---> (mm)/[s]
+}
+void recalculateTime()
+{
+  // t = s/v
+  travelTime = (10 * travelDistance / travelSpeed) / 60.0; //x10 because cm to mm, division by 60 is because time is in minutes
+  //(10*[cm])/[mm/s]/60 ---> [mm]/[mm/s]/60 ---> [s]/60 ---> [min]
+}
+void convertValues()
+{
+  //distance in cm to steps
+  //Pulley's pitch diameter = 12.732 mm, 20 teeth, GT2 pulley.
+  travelSteps = (10 * travelDistance) * (microStepping / (12.732 * 3.1415)); //microstepping/(diameter*pi)
+  travelVelocity = travelSpeed * (microStepping / (12.732 * 3.1415)); //microstepping/(diameter*pi), because mm/s to steps/s
+}
+void stepperHoming()
+  {
+    if (homingPosition == 1)
+    {
+      //homing part - negative direction
+      while (digitalRead(LimitSwitch_1) == 0)
+      {
+        stepper.setSpeed(-600); //going towards the motor
+        stepper.runSpeed();
+      }
+      //parking part - positive direction
+      while (digitalRead(LimitSwitch_1) == 1)
+      {
+        stepper.setSpeed(200);
+        stepper.runSpeed();
+      }
+      stepper.setCurrentPosition(0);
+    }
+    else //homingPosition == 2;
+    {
+      while (digitalRead(LimitSwitch_2) == 0)
+      {
+        stepper.setSpeed(600);
+        stepper.runSpeed();
+      }
 
+      //parking part - positive direction
+      while (digitalRead(LimitSwitch_2) == 1)
+      {
+        stepper.setSpeed(-200);
+        stepper.runSpeed();
+      }
+    }
+    lcd.setCursor(10, 0);
+    lcd.print("1-Homing");
+    lcd.setCursor(0, 20);
+    lcd.print("Parked!");
+  }
 void RotaryEncoder()
 {
   if (stepperHoming_Selected == true) //homing to which side
@@ -207,7 +248,6 @@ void RotaryEncoder()
         travelSpeed--;
       }
       recalculateTime();
-      //when the speed is changed, the distance is kept constant and the time is recalculated
       valueChanged = true;
     }
     CLKPrevious = CLKNow;  // Store last CLK state
@@ -230,7 +270,6 @@ void RotaryEncoder()
         travelTime = travelTime - 0.1;
       }
       recalculateSpeed();
-      //When the time is changed, the distance is kept constant and the speed is recalculated
       valueChanged = true;
     }
     CLKPrevious = CLKNow;  // Store last CLK state
@@ -395,6 +434,7 @@ void updateSelection()
   {
     lcd.setCursor(0, 0);
     lcd.print(">");
+  }
     else
     {
       lcd.setCursor(0, 0);
@@ -414,51 +454,40 @@ void updateSelection()
         lcd.setCursor(3, 1);
         lcd.print("  ");
         break;
+      case 2:
+        lcd.setCursor(3, 1);
+        lcd.print(travelDistance, 0);
+        break;
+      case 3:
+        lcd.setCursor(3, 1);
+        lcd.print(travelSpeed, 1);
+        break;
+      case 4:
+        lcd.setCursor(3, 1);
+        lcd.print(abs(travelTime), 2);
+        break;
     }
     valueChanged = false;
   }
-  void stepperHoming()
-  {
-    if (homingPosition == 1)
+
+  
+  void loop() {
+    // put your main code here, to run repeatedly:
+    ReadAnalog();
+    CheckRotaryButton();
+
+    if (menuChanged == true)
     {
-      //homing part - negative direction
-      while (digitalRead(LimitSwitch_1) == 0)
-      {
-        stepper.setSpeed(-600); //going towards the motor
-        stepper.runSpeed();
-      }
-
-      //parking part - positive direction
-      while (digitalRead(LimitSwitch_1) == 1)
-      {
-        stepper.setSpeed(200);
-        stepper.runSpeed();
-      }
-
-      stepper.setCurrentPosition(0);
-
-
-
-    }
-    else //homingPosition == 2;
-    {
-      while (digitalRead(LimitSwitch_2) == 0)
-      {
-        stepper.setSpeed(600);
-        stepper.runSpeed();
-      }
-
-      //parking part - positive direction
-      while (digitalRead(LimitSwitch_2) == 1)
-      {
-        stepper.setSpeed(-200);
-        stepper.runSpeed();
-      }
+      updateMenuPosition();
     }
 
-    lcd.setCursor(10, 0);
-    lcd.print("1-Homing");
-    lcd.setCursor(0, 20);
-    lcd.print("Parked!");
+    if (updateValueSelection == true)
+    {
+      updateSelection();
+    }
 
+    if (valueChanged == true )
+    {
+      updateValue();
+    }
   }
