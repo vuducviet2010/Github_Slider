@@ -34,6 +34,13 @@ bool menuChanged;
 bool updateValueSelection;
 
 
+volatile float travelDistance = 10;
+float travelSteps;
+volatile float travelSpeed = 10;
+float travelVelocity;
+volatile float travelTime = 0.17;
+float microStepping = 3200;
+
 
 
 void setup() {
@@ -160,6 +167,78 @@ void RotaryEncoder()
   {
     //do nothing
   }
+  else if (stepperDistance_Selected == true) //set distance in millimeters
+  {
+    CLKNow = digitalRead(RotaryCLK); //Read the state of the CLK pin
+    // If last and current state of CLK are different, then a pulse occurred
+    if (CLKNow != CLKPrevious  && CLKNow == 1)
+    {
+      // If the DT state is different than the CLK state then
+      // the encoder is rotating in A direction, so we increase
+      if (digitalRead(RotaryDT) != CLKNow)
+      {
+        travelDistance++;
+      }
+      else
+      {
+        travelDistance--;
+      }
+      recalculateTime();
+      //when the distance is changed, the speed is kept constant and the time is recalculated
+      valueChanged = true;
+    }
+    CLKPrevious = CLKNow;  // Store last CLK state
+  }
+  //Set distance
+  else if (stepperSpeed_Selected == true)
+  {
+    CLKNow = digitalRead(RotaryCLK); //Read the state of the CLK pin
+    // If last and current state of CLK are different, then a pulse occurred
+    if (CLKNow != CLKPrevious  && CLKNow == 1)
+    {
+      // If the DT state is different than the CLK state then
+      // the encoder is rotating in A direction, so we increase
+      if (digitalRead(RotaryDT) != CLKNow)
+      {
+        travelSpeed++;
+      }
+      else
+      {
+        travelSpeed--;
+      }
+      recalculateTime();
+      //when the speed is changed, the distance is kept constant and the time is recalculated
+      valueChanged = true;
+    }
+    CLKPrevious = CLKNow;  // Store last CLK state
+  }
+  //Set time
+  else if (stepperTime_Selected == true)
+  {
+    CLKNow = digitalRead(RotaryCLK); //Read the state of the CLK pin
+    // If last and current state of CLK are different, then a pulse occurred
+    if (CLKNow != CLKPrevious  && CLKNow == 1)
+    {
+      // If the DT state is different than the CLK state then
+      // the encoder is rotating in A direction, so we increase
+      if (digitalRead(RotaryDT) != CLKNow)
+      {
+        travelTime = travelTime + 0.1;
+      }
+      else
+      {
+        travelTime = travelTime - 0.1;
+      }
+      recalculateSpeed();
+      //When the time is changed, the distance is kept constant and the speed is recalculated
+      valueChanged = true;
+    }
+    CLKPrevious = CLKNow;  // Store last CLK state
+  }
+  else if (startSlider_Selected == true)
+  {
+    //do nothing
+  }
   else //MENU COUNTER----------------------------------------------------------------------------
   {
     CLKNow = digitalRead(RotaryCLK); //Read the state of the CLK pin
@@ -219,6 +298,30 @@ void CheckRotaryButton()
         case 1:
           joystickMovement_Selected = !joystickMovement_Selected;
           break;
+        case 2:
+          stepperDistance_Selected = !stepperDistance_Selected;
+          break;
+        //
+        case 3:
+          stepperSpeed_Selected = !stepperSpeed_Selected;
+          break;
+        //
+        case 4:
+          stepperTime_Selected = !stepperTime_Selected;
+          break;
+
+        case 5:
+          startSlider_Selected = !startSlider_Selected;
+          if (startSlider_Selected == false) //If we exit this part, the motor stops
+          {
+            if (stepper.distanceToGo() != 0) //If the stepper is currently moving
+            {
+              stepper.stop(); //"soft" stop - decelerates to 0.
+            }
+            lcd.setCursor(1, 0);
+            lcd.print("stopped!");
+          }
+          break;
       }
       RotaryButtonTime = millis();
       updateValueSelection = true;
@@ -244,19 +347,19 @@ void updateMenuPosition()
       break;
     case 2:
       lcd.setCursor(1, 0);
-      lcd.print("2-Joystick");
+      lcd.print("3-Distance(cm)");
       break;
     case 3:
       lcd.setCursor(1, 0);
-      lcd.print("2-Joystick");
+      lcd.print("4-Speed(mm/s)");
       break;
     case 4:
       lcd.setCursor(1, 0);
-      lcd.print("2-Joystick");
+      lcd.print("5-Time(min)");
       break;
     case 5:
       lcd.setCursor(1, 0);
-      lcd.print("2-Joystick");
+      lcd.print("6-Start slider");
       break;
   }
   menuChanged = false;
@@ -273,70 +376,89 @@ void updateSelection()
     lcd.setCursor(0, 0);
     lcd.print(">");
   }
-  else
+  else if (stepperDistance_Selected == true)
   {
     lcd.setCursor(0, 0);
-    lcd.print(" ");
+    lcd.print(">");
   }
-  updateValueSelection = false;
-}
-void updateValue()
-{
-  switch (menuCounter)
+  else if (stepperSpeed_Selected == true)
   {
-    case 0:
-      lcd.setCursor(3, 1);
-      lcd.print(homingPosition);
-      break;
-    case 1:
-      lcd.setCursor(3, 1);
-      lcd.print("  ");
-      break;
+    lcd.setCursor(0, 0);
+    lcd.print(">");
   }
-  valueChanged = false;
-}
-void stepperHoming()
-{
-  if (homingPosition == 1)
+  else if (stepperTime_Selected == true)
   {
-    //homing part - negative direction
-    while (digitalRead(LimitSwitch_1) == 0)
-    {
-      stepper.setSpeed(-600); //going towards the motor
-      stepper.runSpeed();
-    }
-
-    //parking part - positive direction
-    while (digitalRead(LimitSwitch_1) == 1)
-    {
-      stepper.setSpeed(200);
-      stepper.runSpeed();
-    }
-
-    stepper.setCurrentPosition(0);
-
-
-
+    lcd.setCursor(0, 0);
+    lcd.print(">");
   }
-  else //homingPosition == 2;
+  else if (startSlider_Selected == true)
   {
-    while (digitalRead(LimitSwitch_2) == 0)
+    lcd.setCursor(0, 0);
+    lcd.print(">");
+    else
     {
-      stepper.setSpeed(600);
-      stepper.runSpeed();
+      lcd.setCursor(0, 0);
+      lcd.print(" ");
     }
-
-    //parking part - positive direction
-    while (digitalRead(LimitSwitch_2) == 1)
-    {
-      stepper.setSpeed(-200);
-      stepper.runSpeed();
-    }
+    updateValueSelection = false;
   }
+  void updateValue()
+  {
+    switch (menuCounter)
+    {
+      case 0:
+        lcd.setCursor(3, 1);
+        lcd.print(homingPosition);
+        break;
+      case 1:
+        lcd.setCursor(3, 1);
+        lcd.print("  ");
+        break;
+    }
+    valueChanged = false;
+  }
+  void stepperHoming()
+  {
+    if (homingPosition == 1)
+    {
+      //homing part - negative direction
+      while (digitalRead(LimitSwitch_1) == 0)
+      {
+        stepper.setSpeed(-600); //going towards the motor
+        stepper.runSpeed();
+      }
 
-  lcd.setCursor(10, 0);
-  lcd.print("1-Homing");
-  lcd.setCursor(0, 20);
-  lcd.print("Parked!");
+      //parking part - positive direction
+      while (digitalRead(LimitSwitch_1) == 1)
+      {
+        stepper.setSpeed(200);
+        stepper.runSpeed();
+      }
 
-}
+      stepper.setCurrentPosition(0);
+
+
+
+    }
+    else //homingPosition == 2;
+    {
+      while (digitalRead(LimitSwitch_2) == 0)
+      {
+        stepper.setSpeed(600);
+        stepper.runSpeed();
+      }
+
+      //parking part - positive direction
+      while (digitalRead(LimitSwitch_2) == 1)
+      {
+        stepper.setSpeed(-200);
+        stepper.runSpeed();
+      }
+    }
+
+    lcd.setCursor(10, 0);
+    lcd.print("1-Homing");
+    lcd.setCursor(0, 20);
+    lcd.print("Parked!");
+
+  }
