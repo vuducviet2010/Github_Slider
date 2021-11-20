@@ -32,7 +32,7 @@ bool joystickMovement_Selected = false;
 bool valueChanged;
 bool menuChanged;
 bool updateValueSelection;
-bool updateValueSelection2;
+
 
 
 
